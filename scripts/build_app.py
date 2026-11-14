@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
             "--name", "Nimbrift", "--icon", str(root / "build/Nimbrift.icns"),
             "--osx-bundle-identifier", "io.github.chaochienhung.nimbrift",
             "--specpath", "build", "--workpath", "build/pyinstaller", "--distpath", "dist",
-            "gui_main.py",
+            "desktop_app.py",
         ],
         cwd=root,
         check=True,

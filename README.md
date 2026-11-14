@@ -4,6 +4,8 @@ Nimbrift 是一個透過 SSH/SFTP 傳輸檔案的工具。macOS 使用者可以�
 
 ![Nimbrift GUI 預覽](docs/gui-preview.png)
 
+**本地 GUI 程式位置：`dist/Nimbrift.app`。** 在 Finder 打開專案的 `dist/` 資料夾，雙擊 `Nimbrift.app` 即可啟動。`dist/` 是建置輸出，已被 Git 忽略，因此不會出現在 GitHub 的 Code 檔案列表；GitHub 版本請從下方的 Actions artifact 下載。
+
 ## 目前狀態
 
 目前版本為 **0.1.0**，支援檔案與資料夾上傳／下載、單檔進度、取消、SSH 金鑰或密碼登入、主機金鑰驗證，以及明確的覆寫控制。GUI 使用 PySide6 製作，macOS `.app` 由 PyInstaller 打包。
@@ -36,7 +38,7 @@ source .venv/bin/activate
 python -m pip install -e '.[gui]'
 ```
 
-Windows 的虛擬環境啟用指令為 `.venv\Scripts\activate`。CLI 只需 `python -m pip install -e .`。安裝後可使用 `nimbrift gui` 或 `nimbrift-gui`；也能在專案根目錄執行 `python gui_main.py`。根目錄的 `main.py` 是共用 CLI 入口，可執行 `python main.py gui`。
+Windows 的虛擬環境啟用指令為 `.venv\Scripts\activate`。CLI 只需 `python -m pip install -e .`。安裝後可使用 `nimbrift gui` 或 `nimbrift-gui`；也能在專案根目錄執行 `python desktop_app.py`。根目錄的 `main.py` 是 CLI 入口；`desktop_app.py` 是 GUI 打包入口，雙擊成品時會直接開啟視窗。
 
 ## 連線準備
 

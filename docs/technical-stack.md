@@ -31,7 +31,7 @@
 - `nimbrift/sftp.py`：唯一直接使用 Paramiko 的 adapter。SSH/SFTP 的建立、檔案走訪、暫存檔和覆寫策略集中於此。
 - `nimbrift/cli.py`：命令列參數、終端機進度與結束碼。
 - `nimbrift/gui.py`：Qt Widgets 視窗、表單、背景工作與狀態呈現；樣式用 Qt Style Sheet 設定。
-- `main.py`、`gui_main.py`、`nimbrift/__main__.py`：薄入口。GUI app 使用 `gui_main.py`，開啟時直接進 GUI，不經過 CLI 畫面。
+- `main.py`、`desktop_app.py`、`nimbrift/__main__.py`：薄入口。GUI app 使用 `desktop_app.py`，開啟時直接進 GUI，不經過 CLI 畫面。
 
 這些邊界遵守關注點分離、單一職責與依賴反轉：共用用例在 service，協定細節在 adapter，介面只處理人機互動。進度與取消使用 callback／事件傳遞，不讓核心依賴 Qt。
 

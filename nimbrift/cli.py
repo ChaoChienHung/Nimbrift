@@ -31,9 +31,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "gui":
-        from .gui import main as gui_main
+        from .gui import main as launch_gui
 
-        return gui_main()
+        return launch_gui()
     try:
         password = getpass.getpass("SSH password: ") if args.ask_password else None
         connection = Connection(

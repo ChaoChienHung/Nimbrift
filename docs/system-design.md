@@ -15,7 +15,7 @@ GUI (PySide6) ────┘          │
 GitHub Actions (macOS): tests ──pass──> build ──> Nimbrift.app artifact
 ```
 
-`model.py` 定義不可變的 `Connection`、`Transfer` 與 `Progress` 資料。`service.py` 是介面共同呼叫的應用層入口，透過可注入的 transport factory 建立實作。`sftp.py` 是基礎設施 adapter，負責 SSH 認證、遠端路徑、逐檔傳輸與暫存檔。`cli.py` 與 `gui.py` 僅負責輸入、驗證後建立請求，以及回報結果。`main.py`、`gui_main.py` 和 `__main__.py` 是薄入口，不包含傳輸邏輯。
+`model.py` 定義不可變的 `Connection`、`Transfer` 與 `Progress` 資料。`service.py` 是介面共同呼叫的應用層入口，透過可注入的 transport factory 建立實作。`sftp.py` 是基礎設施 adapter，負責 SSH 認證、遠端路徑、逐檔傳輸與暫存檔。`cli.py` 與 `gui.py` 僅負責輸入、驗證後建立請求，以及回報結果。`main.py`、`desktop_app.py` 和 `__main__.py` 是薄入口，不包含傳輸邏輯。
 
 ### 主要設計原則
 
