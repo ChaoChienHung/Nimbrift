@@ -2,39 +2,59 @@
 
 ## 目標與範圍
 
-第一版提供安全、可預期的 SSH 檔案與資料夾傳輸，讓 CLI、GUI 的行為一致。單次執行處理一項傳輸工作。未包含排程、雙向同步、雲端儲存或分散式佇列。
+Nimbrift 目前是單機桌面／CLI 檔案傳輸工具。一次處理一項傳輸工作，使用 SSH 的 SFTP 子系統上傳或下載檔案與資料夾。設計目標是讓兩種介面行為一致、傳輸失敗有可預期的結果，並保留擴充其他傳輸 adapter、同步計畫與工作佇列的邊界。尚未提供排程、續傳或分散式執行。
 
-## 架構
+## 架構與依賴方向
 
 ```text
-CLI (argparse) ─┐
-                ├─> TransferService ─> Transport protocol ─> SFTPTransport ─> SSH server
-GUI (Tkinter) ──┘          │
-                          └─> Progress / cancellation / errors
+CLI (argparse) ───┐
+                  ├─> TransferService ─> Transport protocol ─> SFTPTransport ─> SSH server
+GUI (PySide6) ────┘          │
+                            └─> Progress / cancellation / errors
+
+GitHub Actions: tests ──pass──> macOS build ──> Nimbrift.app artifact
 ```
 
-`model.py` 定義不可變的連線設定、傳輸請求與進度事件。`service.py` 是應用層入口，透過可注入的 transport factory 執行工作。`sftp.py` 負責 SSH 認證、遠端檔案操作及暫存檔處理。`cli.py` 和 `gui.py` 只負責輸入與呈現，不複製傳輸邏輯。GUI 的網路工作在背景執行緒執行，使用 queue 將進度交回主執行緒更新視窗。
+`model.py` 定義不可變的 `Connection`、`Transfer` 與 `Progress` 資料。`service.py` 是介面共同呼叫的應用層入口，透過可注入的 transport factory 建立實作。`sftp.py` 是基礎設施 adapter，負責 SSH 認證、遠端路徑、逐檔傳輸與暫存檔。`cli.py` 與 `gui.py` 僅負責輸入、驗證後建立請求，以及回報結果。`main.py`、`gui_main.py` 和 `__main__.py` 是薄入口，不包含傳輸邏輯。
 
-## 主要流程
+### 主要設計原則
 
-1. 介面建立並驗證 `Connection` 與 `Transfer`。
-2. `TransferService` 建立 transport，開啟 SSH/SFTP 連線。
-3. transport 遞迴走訪來源，逐檔傳輸；每個進度 callback 檢查取消旗標。
-4. 檔案先寫入目標旁的暫存檔，傳輸完成後才改名為正式檔案。失敗時清除暫存檔。
-5. 關閉 SFTP/SSH，回報完成、取消或失敗。
+| 原則 | 在程式中的做法 | 效益 |
+| --- | --- | --- |
+| 關注點分離與單一職責 | UI、應用服務、SFTP adapter 各自處理不同工作 | 修改 GUI 不必重寫傳輸協定 |
+| 依賴反轉 | `TransferService` 只要求 `Transport` protocol，工廠可注入 | 測試可用假 transport，未來可新增 adapter |
+| 單一真實來源 | CLI 與 GUI 都呼叫同一個 service | 避免兩套傳輸規則逐漸分歧 |
+| 明確狀態與資料 | `dataclass(frozen=True)` 表達請求，`Direction` enum 限制方向 | 邊界資料容易驗證與測試 |
+| 安全預設 | `RejectPolicy`、預設不覆寫、不跟隨符號連結 | 減少意外信任主機或改寫資料 |
+| 資源生命週期 | transport context manager 關閉 SSH/SFTP；GUI 等工作執行緒結束後再收尾 | 連線與視窗狀態可預期 |
+| 漸進式擴充 | 傳輸 adapter 與未來的同步／佇列層分開 | 避免把未來功能堆進 UI 或協定層 |
 
-## 安全與失敗語義
+## 傳輸資料流
 
-- 採用已知主機驗證；未知或變更的主機金鑰會使連線失敗。
-- 不在程式碼、設定檔或命令列參數中儲存密碼。CLI 的密碼由提示讀入；GUI 密碼只保留在目前視窗記憶體。
-- 遞迴傳輸拒絕符號連結與不安全的遠端檔名，避免意外跨越目錄邊界。
-- 預設拒絕覆寫。單一檔案使用暫存檔降低中斷造成的半成品風險。資料夾傳輸不是整體交易；部分檔案成功後若失敗，不會回滾已完成檔案。
-- GUI 的取消是合作式取消，正在進行的檔案會在下一次進度 callback 停止。
+1. CLI 或 GUI 收集連線與路徑，建立 `Connection` 和 `Transfer`。
+2. `TransferService.run()` 建立 transport，開啟 SSH 與 SFTP。
+3. adapter 檢查來源類型，遞迴走訪目錄並逐檔處理；進度 callback 回傳目前檔案位元組數。
+4. 目標旁先建立 `.part` 暫存檔；確認傳輸完成後改名。若取消或失敗，清除該暫存檔。
+5. context manager 關閉連線；介面顯示成功、取消或錯誤。
 
-## 擴充方向
+下載檔案透過本地 `os.replace` 完成替換。上傳覆寫優先用 SFTP `posix_rename`；伺服器不支援時先將舊檔改名為備份，再將新檔改名。資料夾整體不是交易：前面已完成的檔案不會因後續失敗而回滾。
 
-`Transport` protocol 是替換傳輸方式的邊界；可新增 SCP 或其他 adapter，而不更動 UI。若加入同步，應新增獨立的「比較與計畫」層，先產生傳輸清單，再由 service 執行。若加入佇列或並行工作，應在 service 上方建立 job manager，控制併發數、重試與持久化；不要讓 GUI 或 transport 自行管理全域工作狀態。連線設定檔可另設 repository 層，但敏感資訊應交給系統金鑰圈，且仍需維持主機金鑰驗證。
+## GUI 執行緒模型
 
-## 已知限制
+Qt 主執行緒只建立與更新視窗。`TransferWorker(QThread)` 執行阻塞的 SFTP 工作，透過 Qt Signal 將進度、成功、取消與錯誤送回 `MainWindow` 的 Slot。視窗只在工作執行緒結束後恢復開始按鈕；關閉視窗時先發送取消旗標，避免執行緒仍在工作時銷毀 UI。取消使用 `threading.Event`，在每次進度 callback 和每個檔案間檢查，屬於合作式取消。
 
-目前每次傳輸建立一條連線，不支援續傳與跨檔案總進度。覆寫遠端檔案優先使用 SFTP `posix_rename` 擴充；不支援的伺服器改用備份後改名，這段時間目標檔案可能短暫不存在。這些限制可在後續版本透過 transport capability 檢測與 job manifest 改進。
+## 安全與邊界
+
+- 透過 Paramiko 載入已知主機，使用 `RejectPolicy` 拒絕未知主機金鑰。
+- SSH agent、標準金鑰、指定私鑰或執行時密碼由 Paramiko 認證流程處理；專案不儲存密碼。
+- 上傳的本地來源與下載的遠端來源拒絕符號連結；遠端目錄項目檢查 `.`、`..` 和路徑分隔符。
+- 預設拒絕覆寫。暫存檔與逐檔改名降低不完整檔案暴露，但資料夾不是原子操作。
+- GUI 進度只描述目前檔案；不同檔案的大小沒有先被掃描成總進度。
+
+## 擴充路徑
+
+若加入同步，先在 service 上方建立 **計畫層**：比較兩端目錄，產生可預覽的傳輸清單，再交給現有 service 執行。若加入重試與續傳，需要定義錯誤類型、部分檔案狀態與 job manifest。若加入多工作佇列，新增 job manager 控制併發、取消與持久化；不要在 GUI 或 SFTP adapter 中維護全域工作狀態。新增傳輸方式時實作 `Transport` protocol，並透過工廠切換。
+
+## 建置與發布邊界
+
+`tests/` 在 GitHub Actions 的 `tests` job 執行；`macos-app` 使用 `needs: tests`，所以測試失敗不會打包。PyInstaller 把 Python 執行環境與依賴凍結為 macOS `.app`，zip 由 Actions artifact 提供下載。artifact 並非已簽署／公證的正式發行版。完整套件與工具資訊見 [技術說明](technical-stack.md)。

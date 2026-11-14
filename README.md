@@ -1,99 +1,78 @@
 # Nimbrift
 
-Nimbrift 是一個透過 SSH 傳輸檔案的 Python 工具，提供命令列（CLI）與桌面視窗（GUI）。兩種介面共用同一套 SFTP 傳輸核心，適合手動搬移檔案，也可從 shell 腳本呼叫 CLI。
+Nimbrift 是一個透過 SSH/SFTP 傳輸檔案的工具。macOS 使用者可以下載並雙擊 `Nimbrift.app` 開啟 GUI；開發者也可以使用 CLI 執行上傳、下載或 shell 自動化。兩種介面共用同一套傳輸核心。
+
+![Nimbrift GUI 預覽](docs/gui-preview.png)
 
 ## 目前狀態
 
-目前版本是 **0.1.0**，已提供：
+目前版本為 **0.1.0**，支援檔案與資料夾上傳／下載、單檔進度、取消、SSH 金鑰或密碼登入、主機金鑰驗證，以及明確的覆寫控制。GUI 使用 PySide6 製作，macOS `.app` 由 PyInstaller 打包。
 
-- 上傳及下載單一檔案或整個資料夾。
-- 單一檔案進度、取消傳輸與明確的錯誤訊息。
-- SSH agent、預設 SSH 金鑰、指定私鑰或執行時輸入密碼。
-- 已知主機金鑰驗證；未知主機不會被自動信任。
-- 預設拒絕覆寫；傳輸時先寫暫存檔，完成後再改名。
+`tests/` 涵蓋傳輸核心、CLI 與 GUI 的基本行為。本地已成功建置並啟動 macOS app；尚未用實際 SSH 伺服器驗證端到端傳輸。遠端目錄瀏覽、續傳、同步與工作佇列等後續項目記在 [TODO.md](TODO.md)。
 
-目前尚未提供遠端目錄瀏覽、斷點續傳、重試、資料夾同步或多工作佇列，規劃見 [TODO.md](TODO.md)。核心傳輸邏輯已有自動化測試；目前尚未在實際 SSH 伺服器上完成端到端驗證。
+## 直接使用 macOS GUI
 
-## 安裝
+1. 到 [GitHub Actions 的桌面建置頁面](https://github.com/ChaoChienHung/Nimbrift/actions/workflows/desktop.yml)，打開最近一次**成功**的執行。
+2. 在該次執行的 **Artifacts** 下載 `Nimbrift-macOS-arm64`，解壓縮後雙擊 `Nimbrift.app`。這個版本提供給 Apple silicon Mac，不需要另外安裝 Python。
+3. 若 macOS 提示程式未經公證，可在 Finder 對 app 按右鍵並選 **Open**，依系統提示確認。CI 產生的 app 目前沒有 Apple Developer ID 簽署或公證。
 
-需要 **Python 3.10+**。CLI 依賴 Paramiko；GUI 另外需要 Python 的 Tkinter 支援。
+每次 push、pull request 或手動觸發工作流程時，GitHub Actions 先執行 `tests/`；測試通過才建立新的 `.app` artifact。這是持續整合建置，尚未自動建立 GitHub Release。
+
+## GUI 操作
+
+1. 在 **Connection** 區填入 **Host**、**Username** 和需要時修改的 **Port**。預設使用 SSH agent／標準 SSH 金鑰；也可指定 **Private key** 或輸入 **Password**。若主機金鑰不在預設位置，可指定 **Known hosts** 檔案。
+2. 在 **Transfer** 區選 **Upload** 或 **Download**。上傳時可按 **Choose file**／**Choose folder** 選本地來源，手動填入遠端目標；下載時手動填入遠端來源，按 **Choose folder** 選本地目標。
+3. 預設不覆寫既有檔案；需要取代時勾選 **Overwrite existing files**。按 **Start transfer** 開始，底部按鈕會一直保持可見；按 **Cancel** 可要求停止。
+
+GUI 的進度條顯示目前檔案，不是整批資料夾的總進度。遠端路徑目前需要手動輸入。
+
+## 從原始碼安裝
+
+需要 **Python 3.10+**。只使用 CLI 時安裝基本依賴；要從原始碼執行 GUI，安裝 `gui` extra：
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e '.[gui]'
 ```
 
-Windows 的虛擬環境啟用指令是 `.venv\Scripts\activate`。如果執行 GUI 時顯示 Tkinter 不可用，請改用附帶 Tkinter 的 Python 安裝版本建立虛擬環境。安裝後可執行 `nimbrift --help` 確認 CLI 入口。在專案根目錄，也可以用 `python main.py --help` 直接啟動。
+Windows 的虛擬環境啟用指令為 `.venv\Scripts\activate`。CLI 只需 `python -m pip install -e .`。安裝後可使用 `nimbrift gui` 或 `nimbrift-gui`；也能在專案根目錄執行 `python gui_main.py`。根目錄的 `main.py` 是共用 CLI 入口，可執行 `python main.py gui`。
 
 ## 連線準備
 
-先確認 SSH 帳號可登入，並核對伺服器的主機金鑰。主機金鑰需要記錄在 `~/.ssh/known_hosts`，或透過 `--known-hosts`／GUI 的 **Known hosts** 欄位指定。Nimbrift 不會自動接受未知或已變更的主機金鑰。
+先以 SSH 確認帳號可登入，並核對伺服器主機金鑰：
 
 ```bash
 ssh me@example.com
 ```
 
-預設會嘗試 SSH agent 與標準 SSH 金鑰；也可以指定私鑰，或在執行時輸入密碼。密碼不會寫入設定檔。
+主機金鑰需存在於 `~/.ssh/known_hosts`，或透過 CLI 的 `--known-hosts`／GUI 的 **Known hosts** 指定。Nimbrift 不會自動信任未知或已變更的主機金鑰。密碼僅在目前執行期間保留於記憶體，不會儲存到專案設定檔。
 
-## 使用 CLI
-
-以下範例使用安裝後的 `nimbrift` 指令；若從專案根目錄直接執行，可將 `nimbrift` 換成 `python main.py`。
-
-指令格式：
+## CLI 使用
 
 ```text
 nimbrift upload   <本地來源> <遠端目標> --host <主機> --user <帳號> [選項]
 nimbrift download <遠端來源> <本地目標> --host <主機> --user <帳號> [選項]
 ```
 
-範例：
-
 ```bash
-# 上傳單一檔案
 nimbrift upload ./report.csv /home/me/report.csv --host example.com --user me
-
-# 下載資料夾，使用指定私鑰
 nimbrift download /home/me/results ./results --host example.com --user me --key-file ~/.ssh/id_ed25519
-
-# 上傳資料夾並允許覆寫既有檔案
 nimbrift upload ./photos /home/me/photos --host example.com --user me --overwrite
-
-# 使用密碼登入；密碼會在終端機中提示輸入
 nimbrift upload ./report.csv /home/me/report.csv --host example.com --user me --ask-password
 ```
 
-常用選項：
+`--port` 預設為 `22`；`--key-file` 指定私鑰；`--known-hosts` 指定額外的主機金鑰檔案；`--ask-password` 在終端機提示輸入密碼；`--overwrite` 允許取代既有檔案。完整選項可用 `nimbrift upload --help` 與 `nimbrift download --help` 查看。從專案根目錄也可用 `python main.py` 取代 `nimbrift`。
 
-| 選項 | 用途 |
-| --- | --- |
-| `--host`、`--user` | 必填的 SSH 主機與帳號 |
-| `--port` | SSH 連接埠，預設 `22` |
-| `--key-file` | 指定私鑰路徑 |
-| `--known-hosts` | 指定額外的主機金鑰檔案 |
-| `--ask-password` | 在執行時提示輸入密碼 |
-| `--overwrite` | 允許取代既有檔案 |
+## 本地測試與打包
 
-更多參數可用 `nimbrift upload --help` 或 `nimbrift download --help` 查看。
-
-## 使用 GUI
-
-執行 `nimbrift gui`、`nimbrift-gui`，或在專案根目錄執行 `python main.py gui` 開啟視窗：
-
-1. 選擇 **upload** 或 **download**，填入 **Host**、**Username**，必要時修改 **Port**。
-2. 如需指定私鑰或主機金鑰檔案，填入 **Private key** 或 **Known hosts**；使用密碼登入時填入 **Password**。
-3. 填入 **Source** 與 **Destination**。上傳時 Source 是本地路徑、Destination 是遠端路徑；下載時則相反。上傳可用 **Browse** 選檔，或用 **Upload folder** 選資料夾；下載可用 **Browse** 選本地目標資料夾。遠端路徑目前需手動輸入。
-4. 如需取代既有檔案，勾選 **Overwrite existing files**，然後按 **Start transfer**。視窗會顯示目前檔案的進度；按 **Cancel** 可停止傳輸。
-
-## 傳輸行為與限制
-
-資料夾傳輸會遞迴處理內容，目標路徑視為該資料夾的位置。傳輸單一檔案到既有目錄時，會沿用來源檔名。符號連結不會跟隨。若取消或發生錯誤，未完成檔案的暫存檔會清除；已傳完的其他檔案不會回滾。GUI 的進度條顯示目前檔案，尚未計算整批檔案的總進度。
-
-## 開發與設計
+在 **macOS** 上安裝 build extra，然後執行建置腳本：
 
 ```bash
-python -m unittest discover -s tests -v
-python -m compileall -q nimbrift
+python -m pip install -e '.[build]'
+python scripts/build_app.py
 ```
 
-CLI 與 GUI 共用 `TransferService`，由 SFTP adapter 執行傳輸。模組邊界、資料流及擴充方向見 [系統設計文件](docs/system-design.md)。
+腳本會先執行 `python -m unittest discover -s tests -v`；只有全部通過才呼叫 PyInstaller。完成後可在 `dist/Nimbrift.app` 雙擊啟動。建置輸出與虛擬環境已列入 `.gitignore`。
+
+資料夾傳輸會遞迴處理內容，符號連結不會跟隨。傳輸中斷時會清除未完成檔案的暫存檔；已完成的其他檔案不會回滾。更多設計與限制見 [系統設計](docs/system-design.md)，套件、技術與 CI 細節見 [技術說明](docs/technical-stack.md)。

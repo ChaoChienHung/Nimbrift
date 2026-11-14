@@ -9,6 +9,10 @@ description = "SSH file transfers with a CLI and desktop GUI"
 requires-python = ">=3.10"
 dependencies = ["paramiko>=3.4,<5"]
 
+[project.optional-dependencies]
+gui = ["PySide6-Essentials>=6.8,<7"]
+build = ["PySide6-Essentials>=6.8,<7", "pyinstaller>=6.20,<7"]
+
 [project.scripts]
 nimbrift = "nimbrift.cli:main"
 nimbrift-gui = "nimbrift.gui:main"
