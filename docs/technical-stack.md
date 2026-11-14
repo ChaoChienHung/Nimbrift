@@ -41,15 +41,15 @@
 push / pull request / 手動觸發
              │
              ▼
-Ubuntu: 安裝 .[gui] → 執行 tests/ 中的 unittest
+macOS arm64: 安裝 .[build] → 執行 tests/ 中的 unittest
              │ 全數通過
              ▼
-macOS arm64: 安裝 .[build] → 繪製 .icns → PyInstaller .app
+繪製 .icns → PyInstaller .app
              │
              ▼
 檢查 app 可執行檔與 Info.plist → 啟動 smoke test → zip → Actions artifact
 ```
 
-本地 `python scripts/build_app.py` 也先跑同一組測試；`--skip-tests` 只供已完成獨立測試 job 的 CI 建置使用。PyInstaller 在 macOS 使用 `--onedir --windowed`，讓 bundle 內含依賴且啟動時沒有終端機視窗。[PyInstaller 文件](https://pyinstaller.org/en/stable/usage.html) 不建議 macOS `.app` 使用 `--onefile --windowed` 組合。`scripts/make_icon.py` 以 Qt 畫出多尺寸圖示，再由 macOS `iconutil` 組成 `.icns`。
+本地 `python scripts/build_app.py` 也先跑同一組測試；`--skip-tests` 只供同一 CI job 中已通過測試步驟的後續建置使用。PyInstaller 在 macOS 使用 `--onedir --windowed`，讓 bundle 內含依賴且啟動時沒有終端機視窗。[PyInstaller 文件](https://pyinstaller.org/en/stable/usage.html) 不建議 macOS `.app` 使用 `--onefile --windowed` 組合。`scripts/make_icon.py` 以 Qt 畫出多尺寸圖示，再由 macOS `iconutil` 組成 `.icns`。
 
 目前工作流程只建置 **Apple silicon (arm64) macOS** 版本。GitHub artifact 是測試後的建置成果，不等於已做 Apple Developer ID 簽署、公證或自動發布 Release。由於沒有可供 CI 使用的 SSH 測試伺服器，測試使用假 SFTP／transport；真實主機認證、主機金鑰與網路中斷行為仍需端到端測試。

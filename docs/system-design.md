@@ -12,7 +12,7 @@ CLI (argparse) ───┐
 GUI (PySide6) ────┘          │
                             └─> Progress / cancellation / errors
 
-GitHub Actions: tests ──pass──> macOS build ──> Nimbrift.app artifact
+GitHub Actions (macOS): tests ──pass──> build ──> Nimbrift.app artifact
 ```
 
 `model.py` 定義不可變的 `Connection`、`Transfer` 與 `Progress` 資料。`service.py` 是介面共同呼叫的應用層入口，透過可注入的 transport factory 建立實作。`sftp.py` 是基礎設施 adapter，負責 SSH 認證、遠端路徑、逐檔傳輸與暫存檔。`cli.py` 與 `gui.py` 僅負責輸入、驗證後建立請求，以及回報結果。`main.py`、`gui_main.py` 和 `__main__.py` 是薄入口，不包含傳輸邏輯。
@@ -57,4 +57,4 @@ Qt 主執行緒只建立與更新視窗。`TransferWorker(QThread)` 執行阻塞
 
 ## 建置與發布邊界
 
-`tests/` 在 GitHub Actions 的 `tests` job 執行；`macos-app` 使用 `needs: tests`，所以測試失敗不會打包。PyInstaller 把 Python 執行環境與依賴凍結為 macOS `.app`，zip 由 Actions artifact 提供下載。artifact 並非已簽署／公證的正式發行版。完整套件與工具資訊見 [技術說明](technical-stack.md)。
+`tests/` 在 GitHub Actions 的 macOS job 先執行；只有測試步驟成功才會進入打包步驟。PyInstaller 把 Python 執行環境與依賴凍結為 macOS `.app`，zip 由 Actions artifact 提供下載。artifact 並非已簽署／公證的正式發行版。完整套件與工具資訊見 [技術說明](technical-stack.md)。
