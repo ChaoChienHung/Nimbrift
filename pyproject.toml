@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nimbrift"
+version = "0.1.0"
+description = "SSH file transfers with a CLI and desktop GUI"
+requires-python = ">=3.10"
+dependencies = ["paramiko>=3.4,<5"]
+
+[project.scripts]
+nimbrift = "nimbrift.cli:main"
+nimbrift-gui = "nimbrift.gui:main"
+
+[tool.setuptools.packages.find]
+include = ["nimbrift*"]
