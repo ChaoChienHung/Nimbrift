@@ -72,7 +72,7 @@ nimbrift upload ./report.csv /home/me/report.csv --host example.com --user me --
 | `--ask-password` | 在執行時提示輸入密碼 |
 | `--overwrite` | 允許取代既有檔案 |
 
-更多參數可用 `nimbrift upload --help` 或 `nimbrift download --help` 查看。舊的 `uploadSCP.py` 與 `downloadSCP.py` 保留為相容入口，接受相同參數；新腳本建議使用 `nimbrift`。
+更多參數可用 `nimbrift upload --help` 或 `nimbrift download --help` 查看。
 
 ## 使用 GUI
 
