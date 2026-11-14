@@ -7,7 +7,7 @@
 | 套件／工具 | 使用位置 | 技術與用途 |
 | --- | --- | --- |
 | Python 3.10+ | 全專案 | 型別註記、`dataclass`、context manager、路徑與執行緒標準函式庫 |
-| [Paramiko](https://docs.paramiko.org/en/stable/api/client.html) | `nimbrift/sftp.py` | SSH 用戶端與認證、已知主機驗證、SFTP 檔案操作；底層依賴加密函式庫處理 SSH 協定 |
+| [Paramiko](https://docs.paramiko.org/en/stable/api/client.html) | `nimbrift/sftp.py` | SSH 用戶端與認證、已知主機驗證、SFTP 檔案操作；以 `paramiko.SSHConfig` 解析本地 `~/.ssh/config`，並以 `paramiko.ProxyCommand` 支援單跳與多跳跳板機（ProxyJump）連線 |
 | [PySide6 Essentials](https://doc.qt.io/qtforpython-6/package_details.html) | `nimbrift/gui.py` | Qt for Python 的核心、圖形與 Widgets 模組；建立桌面表單、圖示、執行緒、Signal/Slot 與事件迴圈 |
 | [PyInstaller](https://pyinstaller.org/en/stable/usage.html) | `scripts/build_app.py` | 建置時將 Python 程式、直譯器、依賴與 Qt 插件凍結成可雙擊的 macOS `.app` |
 | setuptools | `pyproject.toml` | PEP 517 建置後端，定義安裝套件與 `nimbrift`、`nimbrift-gui` 命令入口 |
@@ -28,7 +28,7 @@
 
 - `nimbrift/model.py`：`Connection`、`Transfer`、`Progress` 與公開錯誤類型。
 - `nimbrift/service.py`：`TransferService` 與可注入的 `Transport` protocol。UI 呼叫此層，不直接操作 Paramiko。
-- `nimbrift/sftp.py`：唯一直接使用 Paramiko 的 adapter。SSH/SFTP 的建立、檔案走訪、暫存檔和覆寫策略集中於此。
+- `nimbrift/sftp.py`：唯一直接使用 Paramiko 的 adapter。SSH/SFTP 的建立、跳板機 ProxyCommand/ProxyJump 通道轉發、檔案走訪、暫存檔和覆寫策略集中於此。
 - `nimbrift/cli.py`：命令列參數、終端機進度與結束碼。
 - `nimbrift/gui.py`：Qt Widgets 視窗、表單、背景工作與狀態呈現；樣式用 Qt Style Sheet 設定。
 - `main.py`、`desktop_app.py`、`nimbrift/__main__.py`：薄入口。GUI app 使用 `desktop_app.py`，開啟時直接進 GUI，不經過 CLI 畫面。

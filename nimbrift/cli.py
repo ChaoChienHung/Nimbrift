@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--user", required=True, help="SSH username")
         command.add_argument("--port", type=int, default=22)
         command.add_argument("--key-file", type=Path, help="Private key path")
+        command.add_argument("-J", "--jump-host", dest="jump_host", help="Jump host(s) e.g. jump1 or user@jump1,user@jump2")
         command.add_argument("--known-hosts", type=Path, help="Additional known_hosts file")
         command.add_argument("--ask-password", action="store_true", help="Prompt for SSH password")
         command.add_argument("--overwrite", action="store_true", help="Replace existing files")
@@ -43,6 +44,7 @@ def main(argv: list[str] | None = None) -> int:
             key_file=args.key_file,
             known_hosts=args.known_hosts,
             password=password,
+            jump_host=args.jump_host,
         )
         request = Transfer(Direction(args.command), args.source, args.destination, args.overwrite)
         last_path = ""

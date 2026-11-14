@@ -11,11 +11,65 @@ from uuid import uuid4
 from .model import Connection, Direction, Progress, Transfer, TransferCancelled, TransferError
 
 
+def build_proxy_command(target_host: str, target_port: int, jump_spec: str) -> str:
+    """Build an OpenSSH ProxyCommand string for single- or multi-hop jump hosts."""
+    hops = [h.strip() for h in jump_spec.split(",") if h.strip()]
+    if not hops:
+        raise ValueError("Jump host specification cannot be empty")
+    target = f"[{target_host}]:{target_port}"
+    if len(hops) == 1:
+        return f"ssh -W {target} {hops[0]}"
+    prior = ",".join(hops[:-1])
+    return f"ssh -J {prior} -W {target} {hops[-1]}"
+
+
 class SFTPTransport:
     def __init__(self, connection: Connection):
         self.connection = connection
         self.client = None
         self.sftp = None
+        self.sock = None
+
+    def _resolve_connection(self, paramiko_module, config_path: Path | None = None):
+        cfg_file = config_path if config_path is not None else Path("~/.ssh/config").expanduser()
+        host_cfg = {}
+        if cfg_file.is_file():
+            try:
+                ssh_config = paramiko_module.SSHConfig()
+                with open(cfg_file) as f:
+                    ssh_config.parse(f)
+                host_cfg = ssh_config.lookup(self.connection.host)
+            except Exception:
+                host_cfg = {}
+
+        target_host = host_cfg.get("hostname") or self.connection.host
+        target_port = self.connection.port
+        if target_port == 22 and "port" in host_cfg:
+            try:
+                target_port = int(host_cfg["port"])
+            except ValueError:
+                pass
+
+        if self.connection.key_file:
+            key_filename = str(self.connection.key_file.expanduser())
+        elif "identityfile" in host_cfg:
+            identities = host_cfg["identityfile"]
+            if isinstance(identities, list):
+                key_filename = [str(Path(p).expanduser()) for p in identities]
+            else:
+                key_filename = str(Path(identities).expanduser())
+        else:
+            key_filename = None
+
+        sock = None
+        jump_spec = self.connection.jump_host or host_cfg.get("proxyjump")
+        if jump_spec:
+            cmd = build_proxy_command(target_host, target_port, jump_spec)
+            sock = paramiko_module.ProxyCommand(cmd)
+        elif "proxycommand" in host_cfg:
+            sock = paramiko_module.ProxyCommand(host_cfg["proxycommand"])
+
+        return target_host, target_port, key_filename, sock
 
     def __enter__(self) -> "SFTPTransport":
         try:
@@ -27,13 +81,16 @@ class SFTPTransport:
         if self.connection.known_hosts:
             client.load_host_keys(str(self.connection.known_hosts.expanduser()))
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        target_host, target_port, key_filename, sock = self._resolve_connection(paramiko)
+        self.sock = sock
         try:
             client.connect(
-                hostname=self.connection.host,
-                port=self.connection.port,
+                hostname=target_host,
+                port=target_port,
                 username=self.connection.username,
                 password=self.connection.password,
-                key_filename=str(self.connection.key_file.expanduser()) if self.connection.key_file else None,
+                key_filename=key_filename,
+                sock=sock,
                 allow_agent=True,
                 look_for_keys=True,
                 timeout=15,
@@ -43,6 +100,9 @@ class SFTPTransport:
             self.sftp = client.open_sftp()
             self.client = client
         except Exception:
+            if self.sock:
+                self.sock.close()
+                self.sock = None
             client.close()
             raise
         return self
@@ -52,6 +112,9 @@ class SFTPTransport:
             self.sftp.close()
         if self.client:
             self.client.close()
+        if self.sock:
+            self.sock.close()
+            self.sock = None
 
     def execute(self, request: Transfer, progress: Callable[[Progress], None], cancel: Event) -> None:
         if request.direction == Direction.UPLOAD:

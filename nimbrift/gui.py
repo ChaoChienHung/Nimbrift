@@ -179,15 +179,17 @@ class MainWindow(QMainWindow):
         self.port = self._input("22")
         self.port.setText("22")
         self.key_file = self._input("Optional · use SSH agent by default")
+        self.jump_host = self._input("Optional · e.g. user@jump1,user@jump2 or uses ~/.ssh/config")
         self.known_hosts = self._input("Optional · uses ~/.ssh/known_hosts")
         self.password = self._input("Optional · never saved")
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         grid.addLayout(self._field("Host", self.host), 0, 0)
         grid.addLayout(self._field("Username", self.username), 0, 1)
         grid.addLayout(self._field("Port", self.port), 0, 2)
-        grid.addLayout(self._field("Private key", self.key_file, self._browse_key), 1, 0, 1, 2)
-        grid.addLayout(self._field("Known hosts", self.known_hosts, self._browse_known_hosts), 1, 2)
-        grid.addLayout(self._field("Password", self.password), 2, 0, 1, 3)
+        grid.addLayout(self._field("Jump host (ProxyJump)", self.jump_host), 1, 0, 1, 3)
+        grid.addLayout(self._field("Private key", self.key_file, self._browse_key), 2, 0, 1, 2)
+        grid.addLayout(self._field("Known hosts", self.known_hosts, self._browse_known_hosts), 2, 2)
+        grid.addLayout(self._field("Password", self.password), 3, 0, 1, 3)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(2, 1)
@@ -348,6 +350,7 @@ class MainWindow(QMainWindow):
                 key_file=Path(self.key_file.text()).expanduser() if self.key_file.text() else None,
                 known_hosts=Path(self.known_hosts.text()).expanduser() if self.known_hosts.text() else None,
                 password=self.password.text() or None,
+                jump_host=self.jump_host.text().strip() or None,
             )
             request = Transfer(
                 self.direction,

@@ -22,7 +22,7 @@ Nimbrift 是一個透過 SSH/SFTP 傳輸檔案的工具。macOS 使用者可以�
 
 ## GUI 操作
 
-1. 在 **Connection** 區填入 **Host**、**Username** 和需要時修改的 **Port**。預設使用 SSH agent／標準 SSH 金鑰；也可指定 **Private key** 或輸入 **Password**。若主機金鑰不在預設位置，可指定 **Known hosts** 檔案。
+1. 在 **Connection** 區填入 **Host**、**Username** 和需要時修改的 **Port**。若需要透過跳板機（Bastion / Jump Host），可在 **Jump host (ProxyJump)** 輸入（例如單跳 `jump1` 或多跳 `user@jump1,user@jump2`）；Nimbrift 也會自動讀取並套用 `~/.ssh/config` 中的 `HostName`、`ProxyJump` 與 `ProxyCommand`。預設使用 SSH agent／標準 SSH 金鑰；也可指定 **Private key** 或輸入 **Password**。若主機金鑰不在預設位置，可指定 **Known hosts** 檔案。
 2. 在 **Transfer** 區選 **Upload** 或 **Download**。上傳時可按 **Choose file**／**Choose folder** 選本地來源，手動填入遠端目標；下載時手動填入遠端來源，按 **Choose folder** 選本地目標。
 3. 預設不覆寫既有檔案；需要取代時勾選 **Overwrite existing files**。按 **Start transfer** 開始，底部按鈕會一直保持可見；按 **Cancel** 可要求停止。
 
@@ -50,6 +50,45 @@ ssh me@example.com
 
 主機金鑰需存在於 `~/.ssh/known_hosts`，或透過 CLI 的 `--known-hosts`／GUI 的 **Known hosts** 指定。Nimbrift 不會自動信任未知或已變更的主機金鑰。密碼僅在目前執行期間保留於記憶體，不會儲存到專案設定檔。
 
+## 多層跳板機與內網叢集連線（Jump Host / ProxyJump）
+
+### 這是什麼問題？
+在校園運算叢集（例如 NUS SoC 的 `xlogin`）、企業私有 VPC 或實驗室工作站等環境中，目標伺服器通常不對外開放公網 IP，必須先透過外網閘道（Gateway）或一層甚至多層跳板機（Bastion / Jump Host）才能抵達：
+
+```text
+本機 (Mac) ──> 外網跳板 (如 stujump) ──> 內網跳板 (如 stu) ──> 目標主機 (如 xlogin)
+```
+
+傳統做法常需要手動 SSH 兩到三次，或者必須先把檔案 `scp` 到跳板機暫存，再登入跳板機轉傳至目標主機，過程繁瑣且浪費跳板機空間。若工具不支援跳板轉發，連線會直接逾時或回報無法路由（No route to host）。
+
+### 如何在 Nimbrift 中解決？
+Nimbrift 原生支援單跳與多跳跳板機（Multi-hop Jump Host），在傳輸檔案時會自動透過 OpenSSH 的 `direct-tcpip` 通道建立端對端安全隧道，直接在本地與目標主機之間傳輸，免除手動中轉。
+
+有兩種使用方式：
+
+#### 方式一：設定本機 `~/.ssh/config`（最推薦）
+在電腦的 `~/.ssh/config` 中設定主機別名與跳板規則（使用標準 `ProxyJump` 或 `ProxyCommand`）：
+```ssh-config
+Host soc-cluster
+    HostName xlogin.comp.nus.edu.sg
+    User chaoch
+    ProxyJump chaoch@stujump.comp.nus.edu.sg,chaoch@stu.comp.nus.edu.sg
+```
+Nimbrift 連線前會自動解析 `~/.ssh/config` 中的 `HostName`、`ProxyJump`、`ProxyCommand`、`Port` 與金鑰設定。在 CLI 或 GUI 中直接填入別名即可直連：
+```bash
+nimbrift upload ./data.csv /home/chaoch/data.csv --host soc-cluster --user chaoch
+```
+
+#### 方式二：使用 CLI 參數 `-J` 或 GUI 欄位指定
+若不想修改 `~/.ssh/config`，也可以直接指定單跳或以逗號分隔的多跳跳板機清單：
+- **CLI**：使用 `-J` 或 `--jump-host`：
+  ```bash
+  nimbrift upload ./data.csv /home/chaoch/data.csv \
+    --host xlogin.comp.nus.edu.sg --user chaoch \
+    -J chaoch@stujump.comp.nus.edu.sg,chaoch@stu.comp.nus.edu.sg
+  ```
+- **GUI**：在 Connection 區塊的 **Jump host (ProxyJump)** 輸入跳板機清單即可。
+
 ## CLI 使用
 
 ```text
@@ -62,9 +101,10 @@ nimbrift upload ./report.csv /home/me/report.csv --host example.com --user me
 nimbrift download /home/me/results ./results --host example.com --user me --key-file ~/.ssh/id_ed25519
 nimbrift upload ./photos /home/me/photos --host example.com --user me --overwrite
 nimbrift upload ./report.csv /home/me/report.csv --host example.com --user me --ask-password
+nimbrift upload ./data.csv /home/chaoch/data.csv --host xlogin.comp.nus.edu.sg --user chaoch -J chaoch@stujump.comp.nus.edu.sg,chaoch@stu.comp.nus.edu.sg
 ```
 
-`--port` 預設為 `22`；`--key-file` 指定私鑰；`--known-hosts` 指定額外的主機金鑰檔案；`--ask-password` 在終端機提示輸入密碼；`--overwrite` 允許取代既有檔案。完整選項可用 `nimbrift upload --help` 與 `nimbrift download --help` 查看。從專案根目錄也可用 `python main.py` 取代 `nimbrift`。
+`--port` 預設為 `22`；`-J` / `--jump-host` 指定單跳或逗點分隔的多跳跳板機；`--key-file` 指定私鑰；`--known-hosts` 指定額外的主機金鑰檔案；`--ask-password` 在終端機提示輸入密碼；`--overwrite` 允許取代既有檔案。完整選項可用 `nimbrift upload --help` 與 `nimbrift download --help` 查看。從專案根目錄也可用 `python main.py` 取代 `nimbrift`。若本機 `~/.ssh/config` 已設定對應主機的 `ProxyJump`、`ProxyCommand` 或別名，Nimbrift 會自動解析套用。
 
 ## 本地測試與打包
 

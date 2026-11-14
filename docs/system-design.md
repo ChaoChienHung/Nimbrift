@@ -32,12 +32,24 @@ GitHub Actions (macOS): tests ──pass──> build ──> Nimbrift.app artif
 ## 傳輸資料流
 
 1. CLI 或 GUI 收集連線與路徑，建立 `Connection` 和 `Transfer`。
-2. `TransferService.run()` 建立 transport，開啟 SSH 與 SFTP。
-3. adapter 檢查來源類型，遞迴走訪目錄並逐檔處理；進度 callback 回傳目前檔案位元組數。
-4. 目標旁先建立 `.part` 暫存檔；確認傳輸完成後改名。若取消或失敗，清除該暫存檔。
-5. context manager 關閉連線；介面顯示成功、取消或錯誤。
+2. `TransferService.run()` 建立 transport。
+3. `SFTPTransport` 於連線前解析 `~/.ssh/config` 與跳板機設定（若指定 `-J` 或設定了 `ProxyJump`／`ProxyCommand`，則構建安全跳板通道），接著開啟 SSH 連線與 SFTP 子系統。
+4. adapter 檢查來源類型，遞迴走訪目錄並逐檔處理；進度 callback 回傳目前檔案位元組數。
+5. 目標旁先建立 `.part` 暫存檔；確認傳輸完成後改名。若取消或失敗，清除該暫存檔。
+6. context manager 關閉 SFTP、SSH 與跳板通道；介面顯示成功、取消或錯誤。
 
 下載檔案透過本地 `os.replace` 完成替換。上傳覆寫優先用 SFTP `posix_rename`；伺服器不支援時先將舊檔改名為備份，再將新檔改名。資料夾整體不是交易：前面已完成的檔案不會因後續失敗而回滾。
+
+## 多層跳板機（ProxyJump / Bastion）設計
+
+### 問題情境
+校園運算叢集或私有雲內部主機（如 `xlogin`）常位於嚴格防火牆內，不具公網 IP，外部訪問必須先經由一層或多層跳板主機（如 `stujump` -> `stu` -> `xlogin`）。若工具不具備跳板轉發能力，使用者必須手動多層 SSH 並在跳板機中繼暫存檔案，傳輸效率低且操作繁瑣。
+
+### 解決方案與生命週期
+- **透明解析**：連線前自動檢查本機 `~/.ssh/config`，解析目標主機別名、連接埠、`ProxyJump` 與 `ProxyCommand`。
+- **鏈式通道構建**：將跳板序列轉換為標準 OpenSSH ProxyCommand（如 `ssh -J hop1 -W [target]:port hop2`），藉由 Paramiko 的 `ProxyCommand` 建立 socket channel，直通目標主機。
+- **端對端加密**：跳板機僅作為 TCP 流量轉發媒介，目標主機的 SSH 認證與 SFTP 傳輸均直接在本地與目標端建立，跳板主機無法窺探傳輸內容或金鑰。
+- **子程序釋放**：在 `SFTPTransport.__exit__` 中明確終止 ProxyCommand 子程序，避免背景遺留孤兒程序。
 
 ## GUI 執行緒模型
 
@@ -47,6 +59,7 @@ Qt 主執行緒只建立與更新視窗。`TransferWorker(QThread)` 執行阻塞
 
 - 透過 Paramiko 載入已知主機，使用 `RejectPolicy` 拒絕未知主機金鑰。
 - SSH agent、標準金鑰、指定私鑰或執行時密碼由 Paramiko 認證流程處理；專案不儲存密碼。
+- 支援多跳跳板機通道（ProxyJump / ProxyCommand），傳輸使用端對端 SSH 加密，跳板主機無法取得傳輸明文；連線關閉時自動終止轉發子程序。
 - 上傳的本地來源與下載的遠端來源拒絕符號連結；遠端目錄項目檢查 `.`、`..` 和路徑分隔符。
 - 預設拒絕覆寫。暫存檔與逐檔改名降低不完整檔案暴露，但資料夾不是原子操作。
 - GUI 進度只描述目前檔案；不同檔案的大小沒有先被掃描成總進度。

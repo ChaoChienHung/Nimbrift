@@ -53,6 +53,20 @@ class GuiTests(unittest.TestCase):
         self.assertIsNone(self.window.worker)
         self.assertTrue(self.window.start_button.isEnabled())
 
+    def test_jump_host_field_is_passed_to_connection(self):
+        self.window.host.setText("xlogin.comp.nus.edu.sg")
+        self.window.username.setText("chaoch")
+        self.window.source.setText("local.txt")
+        self.window.destination.setText("/remote.txt")
+        self.window.jump_host.setText("chaoch@stujump.comp.nus.edu.sg,chaoch@stu.comp.nus.edu.sg")
+        with patch("nimbrift.gui.TransferWorker.start"):
+            self.window._start()
+        self.assertIsNotNone(self.window.worker)
+        self.assertEqual(
+            self.window.worker.connection.jump_host,
+            "chaoch@stujump.comp.nus.edu.sg,chaoch@stu.comp.nus.edu.sg",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
