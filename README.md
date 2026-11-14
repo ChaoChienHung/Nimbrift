@@ -24,7 +24,7 @@ source .venv/bin/activate
 python -m pip install -e .
 ```
 
-Windows 的虛擬環境啟用指令是 `.venv\Scripts\activate`。如果執行 GUI 時顯示 Tkinter 不可用，請改用附帶 Tkinter 的 Python 安裝版本建立虛擬環境。安裝後可執行 `nimbrift --help` 確認 CLI 入口。
+Windows 的虛擬環境啟用指令是 `.venv\Scripts\activate`。如果執行 GUI 時顯示 Tkinter 不可用，請改用附帶 Tkinter 的 Python 安裝版本建立虛擬環境。安裝後可執行 `nimbrift --help` 確認 CLI 入口。在專案根目錄，也可以用 `python main.py --help` 直接啟動。
 
 ## 連線準備
 
@@ -37,6 +37,8 @@ ssh me@example.com
 預設會嘗試 SSH agent 與標準 SSH 金鑰；也可以指定私鑰，或在執行時輸入密碼。密碼不會寫入設定檔。
 
 ## 使用 CLI
+
+以下範例使用安裝後的 `nimbrift` 指令；若從專案根目錄直接執行，可將 `nimbrift` 換成 `python main.py`。
 
 指令格式：
 
@@ -76,7 +78,7 @@ nimbrift upload ./report.csv /home/me/report.csv --host example.com --user me --
 
 ## 使用 GUI
 
-執行 `nimbrift gui` 或 `nimbrift-gui` 開啟視窗：
+執行 `nimbrift gui`、`nimbrift-gui`，或在專案根目錄執行 `python main.py gui` 開啟視窗：
 
 1. 選擇 **upload** 或 **download**，填入 **Host**、**Username**，必要時修改 **Port**。
 2. 如需指定私鑰或主機金鑰檔案，填入 **Private key** 或 **Known hosts**；使用密碼登入時填入 **Password**。
